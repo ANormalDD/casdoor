@@ -21,6 +21,7 @@ type TokenRequest struct {
 	ClientAssertion     string `json:"client_assertion"`
 	ClientAssertionType string `json:"client_assertion_type"`
 	GrantType           string `json:"grant_type"`
+	ApiKey              string `json:"api_key"`
 	Code                string `json:"code"`
 	Verifier            string `json:"code_verifier"`
 	Scope               string `json:"scope"`

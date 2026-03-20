@@ -69,6 +69,9 @@ func AutoSigninFilter(ctx *context.Context) {
 			responseError(ctx, fmt.Sprintf("Access token has expired, expireTime = %s", expireTime))
 			return
 		}
+		if token.User == "" {
+			return
+		}
 
 		userId := util.GetId(token.Organization, token.User)
 		application, err := object.GetApplicationByUserId(fmt.Sprintf("app/%s", token.Application))

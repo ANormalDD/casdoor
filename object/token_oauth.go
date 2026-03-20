@@ -256,14 +256,142 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 	}, nil
 }
 
-func GetOAuthToken(grantType string, clientId string, clientSecret string, code string, verifier string, scope string, nonce string, username string, password string, host string, refreshToken string, tag string, avatar string, lang string, subjectToken string, subjectTokenType string, assertion string, clientAssertion string, clientAssertionType string, audience string, resource string) (interface{}, error) {
+func resolveApiKeyApplication(apiKey string) (*Key, *Application, *TokenError, error) {
+	if apiKey == "" {
+		return nil, nil, &TokenError{
+			Error:            InvalidRequest,
+			ErrorDescription: "api_key should not be empty",
+		}, nil
+	}
+
+	key, err := GetKeyBySecret(apiKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if key == nil {
+		return nil, nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "api_key is invalid",
+		}, nil
+	}
+
+	if !key.IsEnabled {
+		return nil, nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "api_key is disabled",
+		}, nil
+	}
+
+	if key.ExpiresTime != "" {
+		expireTime, err := time.Parse(time.RFC3339, key.ExpiresTime)
+		if err != nil {
+			return nil, nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: "api_key has invalid expiresTime",
+			}, nil
+		}
+		if time.Now().After(expireTime) {
+			return nil, nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: "api_key is expired",
+			}, nil
+		}
+	}
+
+	if key.Application == "" {
+		return nil, nil, &TokenError{
+			Error:            InvalidClient,
+			ErrorDescription: "api_key application is not configured",
+		}, nil
+	}
+
+	application, err := GetApplication(util.GetId("admin", key.Application))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if application == nil {
+		return nil, nil, &TokenError{
+			Error:            InvalidClient,
+			ErrorDescription: fmt.Sprintf("application: %s does not exist", key.Application),
+		}, nil
+	}
+
+	return key, application, nil, nil
+}
+
+func getApplicationScopeNames(application *Application) map[string]bool {
+	scopeNames := map[string]bool{}
+	for _, scope := range application.Scopes {
+		scopeNames[scope.Name] = true
+	}
+	return scopeNames
+}
+
+func resolveApiKeyScope(scope string, application *Application, key *Key) (string, *TokenError) {
+	applicationScopeNames := getApplicationScopeNames(application)
+	requestedScopes := []string{}
+
+	if scope == "" {
+		requestedScopes = append(requestedScopes, key.Scopes...)
+	} else {
+		expandedScope, ok := IsScopeValidAndExpand(scope, application)
+		if !ok {
+			return "", &TokenError{
+				Error:            InvalidScope,
+				ErrorDescription: "the requested scope is invalid or not defined in the application",
+			}
+		}
+		requestedScopes = strings.Fields(expandedScope)
+	}
+
+	keyScopeNames := map[string]bool{}
+	for _, keyScope := range key.Scopes {
+		keyScopeNames[keyScope] = true
+	}
+
+	finalScopes := []string{}
+	seenScopes := map[string]bool{}
+	for _, requestedScope := range requestedScopes {
+		if len(keyScopeNames) > 0 && !keyScopeNames[requestedScope] {
+			continue
+		}
+		if len(applicationScopeNames) > 0 && !applicationScopeNames[requestedScope] {
+			continue
+		}
+		if !seenScopes[requestedScope] {
+			seenScopes[requestedScope] = true
+			finalScopes = append(finalScopes, requestedScope)
+		}
+	}
+
+	if scope != "" && len(finalScopes) == 0 {
+		return "", &TokenError{
+			Error:            InvalidScope,
+			ErrorDescription: "the requested scope is invalid for this api_key",
+		}
+	}
+
+	return strings.Join(finalScopes, " "), nil
+}
+
+func GetOAuthToken(grantType string, clientId string, clientSecret string, apiKey string, code string, verifier string, scope string, nonce string, username string, password string, host string, refreshToken string, tag string, avatar string, lang string, subjectToken string, subjectTokenType string, assertion string, clientAssertion string, clientAssertionType string, audience string, resource string) (interface{}, error) {
 	var (
 		application *Application
+		key         *Key
 		err         error
 		ok          bool
+		tokenError  *TokenError
 	)
 
-	if clientAssertionType == "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
+	if grantType == "api_key" {
+		key, application, tokenError, err = resolveApiKeyApplication(apiKey)
+		if err != nil {
+			return nil, err
+		}
+		if tokenError != nil {
+			return tokenError, nil
+		}
+	} else if clientAssertionType == "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
 		ok, application, err = ValidateClientAssertion(clientAssertion, host)
 		if err != nil {
 			return nil, err
@@ -302,7 +430,6 @@ func GetOAuthToken(grantType string, clientId string, clientSecret string, code 
 	}
 
 	var token *Token
-	var tokenError *TokenError
 	switch grantType {
 	case "authorization_code": // Authorization Code Grant
 		token, tokenError, err = GetAuthorizationCodeToken(application, clientSecret, code, verifier, resource)
@@ -310,6 +437,8 @@ func GetOAuthToken(grantType string, clientId string, clientSecret string, code 
 		token, tokenError, err = GetPasswordToken(application, username, password, scope, host)
 	case "client_credentials": // Client Credentials Grant
 		token, tokenError, err = GetClientCredentialsToken(application, clientSecret, scope, host)
+	case "api_key":
+		token, tokenError, err = GetApiKeyToken(application, key, scope, host)
 	case "token", "id_token": // Implicit Grant
 		token, tokenError, err = GetImplicitToken(application, username, scope, nonce, host)
 	case "urn:ietf:params:oauth:grant-type:jwt-bearer":
@@ -968,6 +1097,156 @@ func GetClientCredentialsToken(application *Application, clientSecret string, sc
 		TokenType:    "Bearer",
 		CodeIsUsed:   true,
 	}
+	_, err = AddToken(token)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return token, nil, nil
+}
+
+func GetApiKeyToken(application *Application, key *Key, scope string, host string) (*Token, *TokenError, error) {
+	if key == nil {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "api_key is invalid",
+		}, nil
+	}
+
+	scope, tokenError := resolveApiKeyScope(scope, application, key)
+	if tokenError != nil {
+		return nil, tokenError, nil
+	}
+
+	var (
+		token *Token
+		err   error
+	)
+
+	switch key.Type {
+	case KeyTypeUser:
+		user, err := getUser(key.Organization, key.User)
+		if err != nil {
+			return nil, nil, err
+		}
+		if user == nil {
+			return nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: fmt.Sprintf("the user: %s does not exist", util.GetId(key.Organization, key.User)),
+			}, nil
+		}
+		if user.IsForbidden {
+			return nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: "the user is forbidden to sign in, please contact the administrator",
+			}, nil
+		}
+
+		err = ExtendUserWithRolesAndPermissions(user)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		accessToken, _, tokenName, err := generateJwtToken(application, user, "", "", "", scope, "", host)
+		if err != nil {
+			return nil, &TokenError{
+				Error:            EndpointError,
+				ErrorDescription: fmt.Sprintf("generate jwt token error: %s", err.Error()),
+			}, nil
+		}
+
+		token = &Token{
+			Owner:        application.Owner,
+			Name:         tokenName,
+			CreatedTime:  util.GetCurrentTime(),
+			Application:  application.Name,
+			Organization: user.Owner,
+			User:         user.Name,
+			Key:          key.GetId(),
+			Code:         util.GenerateClientId(),
+			AccessToken:  accessToken,
+			ExpiresIn:    int(application.ExpireInHours * float64(hourSeconds)),
+			Scope:        scope,
+			TokenType:    "Bearer",
+			CodeIsUsed:   true,
+		}
+	case KeyTypeApplication:
+		nullUser := &User{
+			Owner: application.Owner,
+			Id:    application.GetId(),
+			Name:  application.Name,
+			Type:  "application",
+		}
+
+		accessToken, _, tokenName, err := generateJwtToken(application, nullUser, "", "", "", scope, "", host)
+		if err != nil {
+			return nil, &TokenError{
+				Error:            EndpointError,
+				ErrorDescription: fmt.Sprintf("generate jwt token error: %s", err.Error()),
+			}, nil
+		}
+
+		token = &Token{
+			Owner:        application.Owner,
+			Name:         tokenName,
+			CreatedTime:  util.GetCurrentTime(),
+			Application:  application.Name,
+			Organization: application.Organization,
+			User:         nullUser.Name,
+			Key:          key.GetId(),
+			Code:         util.GenerateClientId(),
+			AccessToken:  accessToken,
+			ExpiresIn:    int(application.ExpireInHours * float64(hourSeconds)),
+			Scope:        scope,
+			TokenType:    "Bearer",
+			CodeIsUsed:   true,
+		}
+	case KeyTypeOrganization, KeyTypeGeneral:
+		organization := key.Organization
+		if organization == "" {
+			organization = application.Organization
+		}
+		keyUser := &User{
+			Owner:       organization,
+			Id:          key.GetId(),
+			Name:        "",
+			Type:        key.Type,
+			DisplayName: key.DisplayName,
+			Tag:         key.Type,
+		}
+
+		accessToken, _, tokenName, err := generateJwtToken(application, keyUser, "", "", "", scope, "", host)
+		if err != nil {
+			return nil, &TokenError{
+				Error:            EndpointError,
+				ErrorDescription: fmt.Sprintf("generate jwt token error: %s", err.Error()),
+			}, nil
+		}
+
+		token = &Token{
+			Owner:        application.Owner,
+			Name:         tokenName,
+			CreatedTime:  util.GetCurrentTime(),
+			Application:  application.Name,
+			Organization: organization,
+			User:         "",
+			Key:          key.GetId(),
+			Code:         util.GenerateClientId(),
+			AccessToken:  accessToken,
+			ExpiresIn:    int(application.ExpireInHours * float64(hourSeconds)),
+			Scope:        scope,
+			TokenType:    "Bearer",
+			CodeIsUsed:   true,
+		}
+	default:
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: fmt.Sprintf("unsupported key type: %s", key.Type),
+		}, nil
+	}
+
+	token.Key = key.GetId()
+
 	_, err = AddToken(token)
 	if err != nil {
 		return nil, nil, err

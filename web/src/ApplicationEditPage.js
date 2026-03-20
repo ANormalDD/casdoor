@@ -744,6 +744,7 @@ class ApplicationEditPage extends React.Component {
                     {id: "authorization_code", name: "Authorization Code"},
                     {id: "password", name: "Password"},
                     {id: "client_credentials", name: "Client Credentials"},
+                    {id: "api_key", name: "API Key"},
                     {id: "token", name: "Token"},
                     {id: "id_token", name: "ID Token"},
                     {id: "refresh_token", name: "Refresh Token"},

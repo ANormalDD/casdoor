@@ -166,6 +166,7 @@ func (c *ApiController) GetOAuthToken() {
 	clientAssertion := c.Ctx.Input.Query("client_assertion")
 	clientAssertionType := c.Ctx.Input.Query("client_assertion_type")
 	grantType := c.Ctx.Input.Query("grant_type")
+	apiKey := c.Ctx.Input.Query("api_key")
 	code := c.Ctx.Input.Query("code")
 	verifier := c.Ctx.Input.Query("code_verifier")
 	scope := c.Ctx.Input.Query("scope")
@@ -204,6 +205,9 @@ func (c *ApiController) GetOAuthToken() {
 			}
 			if grantType == "" {
 				grantType = tokenRequest.GrantType
+			}
+			if apiKey == "" {
+				apiKey = tokenRequest.ApiKey
 			}
 			if code == "" {
 				code = tokenRequest.Code
@@ -291,7 +295,7 @@ func (c *ApiController) GetOAuthToken() {
 		username = deviceAuthCacheCast.UserName
 	}
 
-	token, err := object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, nonce, username, password, host, refreshToken, tag, avatar, c.GetAcceptLanguage(), subjectToken, subjectTokenType, assertion, clientAssertion, clientAssertionType, audience, resource)
+	token, err := object.GetOAuthToken(grantType, clientId, clientSecret, apiKey, code, verifier, scope, nonce, username, password, host, refreshToken, tag, avatar, c.GetAcceptLanguage(), subjectToken, subjectTokenType, assertion, clientAssertion, clientAssertionType, audience, resource)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
