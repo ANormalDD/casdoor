@@ -109,8 +109,6 @@ type User struct {
 	PreHash              string     `xorm:"varchar(100)" json:"preHash"`
 	RegisterType         string     `xorm:"varchar(100)" json:"registerType"`
 	RegisterSource       string     `xorm:"varchar(100)" json:"registerSource"`
-	AccessKey            string     `xorm:"varchar(100)" json:"accessKey"`
-	AccessSecret         string     `xorm:"varchar(100)" json:"accessSecret"`
 	AccessToken          string     `xorm:"mediumtext" json:"accessToken"`
 	OriginalToken        string     `xorm:"mediumtext" json:"originalToken"`
 	OriginalRefreshToken string     `xorm:"mediumtext" json:"originalRefreshToken"`
@@ -666,9 +664,6 @@ func GetMaskedUser(user *User, isAdminOrSelf bool, errs ...error) (*User, error)
 	}
 
 	if !isAdminOrSelf {
-		if user.AccessSecret != "" {
-			user.AccessSecret = "***"
-		}
 		if user.OriginalToken != "" {
 			user.OriginalToken = "***"
 		}
