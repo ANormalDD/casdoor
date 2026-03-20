@@ -109,6 +109,7 @@ func (c *ApiController) AddKey() {
 		"key":    &key,
 		"apiKey": rawSecret,
 	})
+	c.addKeyAuditRecord("add-key", &key, "success", "key created")
 }
 
 func (c *ApiController) UpdateKey() {
@@ -141,8 +142,18 @@ func (c *ApiController) UpdateKey() {
 		return
 	}
 
-	c.Data["json"] = wrapActionResponse(object.UpdateKey(id, &key))
+	affected, err := object.UpdateKey(id, &key)
+	c.Data["json"] = wrapActionResponse(affected, err)
 	c.ServeJSON()
+	if err == nil {
+		result := "success"
+		response := "key updated"
+		if !affected {
+			result = "unaffected"
+			response = "key unchanged"
+		}
+		c.addKeyAuditRecord("update-key", &key, result, response)
+	}
 }
 
 func (c *ApiController) DeleteKey() {
@@ -153,8 +164,18 @@ func (c *ApiController) DeleteKey() {
 		return
 	}
 
-	c.Data["json"] = wrapActionResponse(object.DeleteKey(&key))
+	affected, err := object.DeleteKey(&key)
+	c.Data["json"] = wrapActionResponse(affected, err)
 	c.ServeJSON()
+	if err == nil {
+		result := "success"
+		response := "key deleted"
+		if !affected {
+			result = "unaffected"
+			response = "key not found"
+		}
+		c.addKeyAuditRecord("delete-key", &key, result, response)
+	}
 }
 
 func (c *ApiController) RotateKey() {
@@ -196,4 +217,5 @@ func (c *ApiController) RotateKey() {
 		"key":    key,
 		"apiKey": rawSecret,
 	})
+	c.addKeyAuditRecord("rotate-key", key, "success", "key rotated")
 }

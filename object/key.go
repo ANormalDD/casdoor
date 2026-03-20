@@ -306,6 +306,31 @@ func UpdateKey(id string, key *Key) (bool, error) {
 	return affected != 0, nil
 }
 
+func UpdateKeyLastUsedTime(id string) (bool, error) {
+	owner, name, err := util.GetOwnerAndNameFromIdWithError(id)
+	if err != nil {
+		return false, err
+	}
+
+	key, err := getKey(owner, name)
+	if err != nil {
+		return false, err
+	}
+	if key == nil {
+		return false, nil
+	}
+
+	key.LastUsedTime = util.GetCurrentTime()
+	key.UpdatedTime = util.GetCurrentTime()
+
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).Cols("last_used_time", "updated_time").Update(key)
+	if err != nil {
+		return false, err
+	}
+
+	return affected != 0, nil
+}
+
 func DeleteKey(key *Key) (bool, error) {
 	affected, err := ormer.Engine.ID(core.PK{key.Owner, key.Name}).Delete(&Key{})
 	if err != nil {

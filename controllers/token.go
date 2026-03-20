@@ -301,6 +301,16 @@ func (c *ApiController) GetOAuthToken() {
 		return
 	}
 
+	if grantType == "api_key" {
+		result := "success"
+		response := "access token issued"
+		if tokenError, ok := token.(*object.TokenError); ok {
+			result = "failure"
+			response = tokenError.ErrorDescription
+		}
+		c.addApiKeyGrantRecord(apiKey, result, response)
+	}
+
 	c.Data["json"] = token
 	c.SetTokenErrorHttpStatus()
 	c.ServeJSON()

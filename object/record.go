@@ -27,13 +27,17 @@ import (
 )
 
 var (
-	logPostOnly   bool
-	passwordRegex *regexp.Regexp
+	logPostOnly        bool
+	sensitiveFieldList []*regexp.Regexp
 )
 
 func init() {
 	logPostOnly = conf.GetConfigBool("logPostOnly")
-	passwordRegex = regexp.MustCompile("\"password\":\"([^\"]*?)\"")
+	sensitiveFieldList = []*regexp.Regexp{
+		regexp.MustCompile("\"password\":\"([^\"]*?)\""),
+		regexp.MustCompile("\"api_key\":\"([^\"]*?)\""),
+		regexp.MustCompile("\"accessSecret\":\"([^\"]*?)\""),
+	}
 }
 
 type Record struct {
@@ -65,8 +69,17 @@ type Response struct {
 	Data interface{} `json:"data"`
 }
 
-func maskPassword(recordString string) string {
-	return passwordRegex.ReplaceAllString(recordString, "\"password\":\"***\"")
+func maskSensitiveFields(recordString string) string {
+	for _, pattern := range sensitiveFieldList {
+		recordString = pattern.ReplaceAllStringFunc(recordString, func(match string) string {
+			parts := strings.SplitN(match, ":", 2)
+			if len(parts) != 2 {
+				return match
+			}
+			return parts[0] + ":\"***\""
+		})
+	}
+	return recordString
 }
 
 func NewRecord(ctx *context.Context) (*Record, error) {
@@ -76,7 +89,7 @@ func NewRecord(ctx *context.Context) (*Record, error) {
 		action = "notify-payment"
 	}
 
-	requestUri := util.FilterQuery(ctx.Request.RequestURI, []string{"accessToken"})
+	requestUri := util.FilterQuery(ctx.Request.RequestURI, []string{"accessToken", "accessKey", "accessSecret", "api_key"})
 	if len(requestUri) > 1000 {
 		requestUri = requestUri[0:1000]
 	}
@@ -84,7 +97,7 @@ func NewRecord(ctx *context.Context) (*Record, error) {
 	object := ""
 	if ctx.Input.RequestBody != nil && len(ctx.Input.RequestBody) != 0 {
 		object = string(ctx.Input.RequestBody)
-		object = maskPassword(object)
+		object = maskSensitiveFields(object)
 	}
 
 	respBytes, err := json.Marshal(ctx.Input.Data()["json"])
@@ -151,7 +164,7 @@ func AddRecord(record *Record) bool {
 	}
 
 	record.Owner = record.Organization
-	record.Object = maskPassword(record.Object)
+	record.Object = maskSensitiveFields(record.Object)
 
 	errWebhook := SendWebhooks(record)
 	if errWebhook == nil {
