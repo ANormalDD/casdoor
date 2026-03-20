@@ -639,23 +639,6 @@ func GetUserByInvitationCode(owner string, invitationCode string) (*User, error)
 	}
 }
 
-func GetUserByAccessKey(accessKey string) (*User, error) {
-	if accessKey == "" {
-		return nil, nil
-	}
-	user := User{AccessKey: accessKey}
-	existed, err := ormer.Engine.Get(&user)
-	if err != nil {
-		return nil, err
-	}
-
-	if existed {
-		return &user, nil
-	} else {
-		return nil, nil
-	}
-}
-
 func GetUser(id string) (*User, error) {
 	owner, name, err := util.GetOwnerAndNameFromIdWithError(id)
 	if err != nil {
