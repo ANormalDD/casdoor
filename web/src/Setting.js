@@ -2361,7 +2361,7 @@ export function getApiPaths() {
       res.push("place-order", "cancel-order", "pay-order");
     }
     if (obj === "user") {
-      res.push("add-user-keys", "remove-user-from-group", "upload-users");
+      res.push("remove-user-from-group", "upload-users");
       res.push("check-user-password", "set-password", "reset-email-or-phone");
       res.push("verify-identification");
     }
