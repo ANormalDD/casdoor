@@ -1396,17 +1396,6 @@ func (user *User) GetPreferredMfaProps(masked bool) *MfaProps {
 	return user.GetMfaProps(user.PreferredMfaType, masked)
 }
 
-func AddUserKeys(user *User, isAdmin bool) (bool, error) {
-	if user == nil {
-		return false, fmt.Errorf("the user is not found")
-	}
-
-	user.AccessKey = util.GenerateId()
-	user.AccessSecret = util.GenerateId()
-
-	return UpdateUser(user.GetId(), user, []string{}, isAdmin)
-}
-
 func (user *User) IsApplicationAdmin(application *Application) bool {
 	if user == nil {
 		return false
