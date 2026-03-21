@@ -18,6 +18,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
@@ -230,6 +231,20 @@ func DeleteToken(token *Token) (bool, error) {
 
 func ExpireTokenByUser(owner, username string) (bool, error) {
 	affected, err := ormer.Engine.Where("organization = ? and user = ?", owner, username).Cols("expires_in").Update(&Token{ExpiresIn: 0})
+	if err != nil {
+		return false, err
+	}
+
+	return affected != 0, nil
+}
+
+func ExpireTokenByKey(keyId string) (bool, error) {
+	keyId = strings.TrimSpace(keyId)
+	if keyId == "" {
+		return false, nil
+	}
+
+	affected, err := ormer.Engine.Where("key = ? AND expires_in > 0", keyId).Cols("expires_in").Update(&Token{ExpiresIn: 0})
 	if err != nil {
 		return false, err
 	}

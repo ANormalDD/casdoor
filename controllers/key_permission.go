@@ -17,10 +17,20 @@ package controllers
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
+
+func (c *ApiController) isKeyGlobalAdmin() bool {
+	currentUser := c.getCurrentUser()
+	if currentUser == nil {
+		return false
+	}
+
+	return currentUser.IsGlobalAdmin()
+}
 
 func (c *ApiController) canManageKey(key *object.Key) (bool, error) {
 	if key == nil {
@@ -30,10 +40,6 @@ func (c *ApiController) canManageKey(key *object.Key) (bool, error) {
 	username := c.GetSessionUsername()
 	if username == "" {
 		return false, errors.New(c.T("general:Please login first"))
-	}
-
-	if object.IsAppUser(username) {
-		return true, nil
 	}
 
 	currentUser := c.getCurrentUser()
@@ -106,4 +112,32 @@ func (c *ApiController) filterAuthorizedKeys(keys []*object.Key) ([]*object.Key,
 	}
 
 	return filteredKeys, nil
+}
+
+func shouldExpireTokensForKeyUpdate(oldKey *object.Key, newKey *object.Key) bool {
+	if oldKey == nil || newKey == nil {
+		return false
+	}
+
+	if !newKey.IsEnabled {
+		return true
+	}
+
+	return oldKey.Type != newKey.Type ||
+		oldKey.Organization != newKey.Organization ||
+		oldKey.Application != newKey.Application ||
+		oldKey.User != newKey.User ||
+		oldKey.ExpiresTime != newKey.ExpiresTime ||
+		oldKey.IsEnabled != newKey.IsEnabled ||
+		!reflect.DeepEqual(oldKey.Scopes, newKey.Scopes)
+}
+
+func expireTokensForKeyIds(keyIds ...string) error {
+	for _, keyId := range keyIds {
+		if _, err := object.ExpireTokenByKey(keyId); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

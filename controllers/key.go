@@ -35,7 +35,7 @@ func (c *ApiController) GetKeys() {
 	application := c.Ctx.Input.Query("application")
 	user := c.Ctx.Input.Query("user")
 
-	if c.IsGlobalAdmin() {
+	if c.isKeyGlobalAdmin() {
 		if limit == "" || page == "" {
 			keys, err := object.GetMaskedKeys(object.GetKeys(owner, keyType, organization, application, user))
 			if err != nil {
@@ -154,10 +154,6 @@ func (c *ApiController) AddKey() {
 		return
 	}
 
-	if !key.IsEnabled {
-		key.IsEnabled = true
-	}
-
 	rawSecret := object.GenerateKeySecret()
 	key.SetSecret(rawSecret)
 
@@ -231,17 +227,28 @@ func (c *ApiController) UpdateKey() {
 	}
 
 	affected, err := object.UpdateKey(id, &key)
-	c.Data["json"] = wrapActionResponse(affected, err)
-	c.ServeJSON()
-	if err == nil {
-		result := "success"
-		response := "key updated"
-		if !affected {
-			result = "unaffected"
-			response = "key unchanged"
-		}
-		c.addKeyAuditRecord("update-key", &key, result, response)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
 	}
+
+	if affected && shouldExpireTokensForKeyUpdate(oldKey, &key) {
+		if err := expireTokensForKeyIds(oldKey.GetId(), key.GetId()); err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	}
+
+	c.Data["json"] = wrapActionResponse(affected)
+	c.ServeJSON()
+
+	result := "success"
+	response := "key updated"
+	if !affected {
+		result = "unaffected"
+		response = "key unchanged"
+	}
+	c.addKeyAuditRecord("update-key", &key, result, response)
 }
 
 func (c *ApiController) DeleteKey() {
@@ -274,17 +281,28 @@ func (c *ApiController) DeleteKey() {
 	}
 
 	affected, err := object.DeleteKey(key)
-	c.Data["json"] = wrapActionResponse(affected, err)
-	c.ServeJSON()
-	if err == nil {
-		result := "success"
-		response := "key deleted"
-		if !affected {
-			result = "unaffected"
-			response = "key not found"
-		}
-		c.addKeyAuditRecord("delete-key", key, result, response)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
 	}
+
+	if affected {
+		if err := expireTokensForKeyIds(key.GetId()); err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	}
+
+	c.Data["json"] = wrapActionResponse(affected)
+	c.ServeJSON()
+
+	result := "success"
+	response := "key deleted"
+	if !affected {
+		result = "unaffected"
+		response = "key not found"
+	}
+	c.addKeyAuditRecord("delete-key", key, result, response)
 }
 
 func (c *ApiController) RotateKey() {
@@ -328,6 +346,11 @@ func (c *ApiController) RotateKey() {
 	if !affected {
 		c.Data["json"] = wrapActionResponse(false)
 		c.ServeJSON()
+		return
+	}
+
+	if err := expireTokensForKeyIds(key.GetId()); err != nil {
+		c.ResponseError(err.Error())
 		return
 	}
 
