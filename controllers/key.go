@@ -35,36 +35,94 @@ func (c *ApiController) GetKeys() {
 	application := c.Ctx.Input.Query("application")
 	user := c.Ctx.Input.Query("user")
 
-	if limit == "" || page == "" {
-		keys, err := object.GetMaskedKeys(object.GetKeys(owner, keyType, organization, application, user))
-		if err != nil {
-			c.ResponseError(err.Error())
-			return
-		}
+	if c.IsGlobalAdmin() {
+		if limit == "" || page == "" {
+			keys, err := object.GetMaskedKeys(object.GetKeys(owner, keyType, organization, application, user))
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
 
+			c.ResponseOk(keys)
+		} else {
+			limit := util.ParseInt(limit)
+			count, err := object.GetKeyCount(owner, keyType, organization, application, user, field, value)
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
+
+			paginator := pagination.NewPaginator(c.Ctx.Request, limit, count)
+			keys, err := object.GetMaskedKeys(object.GetPaginationKeys(owner, keyType, organization, application, user, paginator.Offset(), limit, field, value, sortField, sortOrder))
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
+
+			c.ResponseOk(keys, paginator.Nums())
+		}
+		return
+	}
+
+	keys, err := object.GetPaginationKeys(owner, keyType, organization, application, user, -1, -1, field, value, sortField, sortOrder)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	keys, err = c.filterAuthorizedKeys(keys)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	keys, err = object.GetMaskedKeys(keys)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	if limit == "" || page == "" {
 		c.ResponseOk(keys)
 	} else {
-		limit := util.ParseInt(limit)
-		count, err := object.GetKeyCount(owner, keyType, organization, application, user, field, value)
-		if err != nil {
-			c.ResponseError(err.Error())
-			return
+		pageSize := util.ParseInt(limit)
+		paginator := pagination.NewPaginator(c.Ctx.Request, pageSize, int64(len(keys)))
+		start := paginator.Offset()
+		if start > len(keys) {
+			start = len(keys)
+		}
+		end := start + pageSize
+		if end > len(keys) {
+			end = len(keys)
 		}
 
-		paginator := pagination.NewPaginator(c.Ctx.Request, limit, count)
-		keys, err := object.GetMaskedKeys(object.GetPaginationKeys(owner, keyType, organization, application, user, paginator.Offset(), limit, field, value, sortField, sortOrder))
-		if err != nil {
-			c.ResponseError(err.Error())
-			return
-		}
-
-		c.ResponseOk(keys, paginator.Nums())
+		c.ResponseOk(keys[start:end], paginator.Nums())
 	}
 }
 
 func (c *ApiController) GetKey() {
 	id := c.Ctx.Input.Query("id")
-	key, err := object.GetMaskedKey(object.GetKey(id))
+	key, err := object.GetKey(id)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if key == nil {
+		c.ResponseOk(nil)
+		return
+	}
+
+	ok, err := c.canManageKey(key)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !ok {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+
+	key, err = object.GetMaskedKey(key)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
@@ -83,6 +141,16 @@ func (c *ApiController) AddKey() {
 
 	if err = object.CheckKey(&key, c.GetAcceptLanguage()); err != nil {
 		c.ResponseError(err.Error())
+		return
+	}
+
+	ok, err := c.canManageKey(&key)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !ok {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
 		return
 	}
 
@@ -133,12 +201,32 @@ func (c *ApiController) UpdateKey() {
 		return
 	}
 
+	ok, err := c.canManageKey(oldKey)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !ok {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+
 	key.SecretHash = oldKey.SecretHash
 	key.SecretPreview = oldKey.SecretPreview
 	key.CreatedTime = oldKey.CreatedTime
 
 	if err = object.CheckKey(&key, c.GetAcceptLanguage()); err != nil {
 		c.ResponseError(err.Error())
+		return
+	}
+
+	ok, err = c.canManageKey(&key)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !ok {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
 		return
 	}
 
@@ -157,14 +245,35 @@ func (c *ApiController) UpdateKey() {
 }
 
 func (c *ApiController) DeleteKey() {
-	var key object.Key
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &key)
+	var req object.Key
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &req)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	affected, err := object.DeleteKey(&key)
+	key, err := object.GetKey(req.GetId())
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if key == nil {
+		c.Data["json"] = wrapActionResponse(false)
+		c.ServeJSON()
+		return
+	}
+
+	ok, err := c.canManageKey(key)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !ok {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+
+	affected, err := object.DeleteKey(key)
 	c.Data["json"] = wrapActionResponse(affected, err)
 	c.ServeJSON()
 	if err == nil {
@@ -174,7 +283,7 @@ func (c *ApiController) DeleteKey() {
 			result = "unaffected"
 			response = "key not found"
 		}
-		c.addKeyAuditRecord("delete-key", &key, result, response)
+		c.addKeyAuditRecord("delete-key", key, result, response)
 	}
 }
 
@@ -194,6 +303,16 @@ func (c *ApiController) RotateKey() {
 	if key == nil {
 		c.Data["json"] = wrapActionResponse(false)
 		c.ServeJSON()
+		return
+	}
+
+	ok, err := c.canManageKey(key)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !ok {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
 		return
 	}
 
