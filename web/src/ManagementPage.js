@@ -58,6 +58,8 @@ import AdapterEditPage from "./AdapterEditPage";
 import EnforcerListPage from "./EnforcerListPage";
 import EnforcerEditPage from "./EnforcerEditPage";
 import SessionListPage from "./SessionListPage";
+import KeyListPage from "./KeyListPage";
+import KeyEditPage from "./KeyEditPage";
 import TokenListPage from "./TokenListPage";
 import TokenEditPage from "./TokenEditPage";
 import ProductListPage from "./ProductListPage";
@@ -106,6 +108,8 @@ import * as Cookie from "cookie";
 import * as UserBackend from "./backend/UserBackend";
 import SiteListPage from "./SiteListPage";
 import SiteEditPage from "./SiteEditPage";
+import ServerListPage from "./ServerListPage";
+import ServerEditPage from "./ServerEditPage";
 import RuleEditPage from "./RuleEditPage";
 import RuleListPage from "./RuleListPage";
 
@@ -327,8 +331,6 @@ function ManagementPage(props) {
       Setting.getItem(<Link to="/providers">{i18next.t("application:Providers")}</Link>, "/providers"),
       Setting.getItem(<Link to="/resources">{i18next.t("general:Resources")}</Link>, "/resources"),
       Setting.getItem(<Link to="/certs">{i18next.t("general:Certs")}</Link>, "/certs"),
-      Setting.getItem(<Link to="/sites">{i18next.t("general:Sites")}</Link>, "/sites"),
-      Setting.getItem(<Link to="/rules">{i18next.t("general:Rules")}</Link>, "/rules"),
     ]));
 
     res.push(Setting.getItem(<Link style={{color: textColor}} to="/roles">{i18next.t("general:Authorization")}</Link>, "/auth", <SafetyCertificateTwoTone twoToneColor={twoToneColor} />, [
@@ -346,6 +348,7 @@ function ManagementPage(props) {
     })));
 
     res.push(Setting.getItem(<Link style={{color: textColor}} to="/sites">{i18next.t("general:Gateway")}</Link>, "/gateway", <CheckCircleTwoTone twoToneColor={twoToneColor} />, [
+      Setting.getItem(<Link to="/servers">{i18next.t("general:MCP Servers")}</Link>, "/servers"),
       Setting.getItem(<Link to="/sites">{i18next.t("general:Sites")}</Link>, "/sites"),
       Setting.getItem(<Link to="/certs">{i18next.t("general:Certs")}</Link>, "/certs"),
       Setting.getItem(<Link to="/rules">{i18next.t("general:Rules")}</Link>, "/rules"),
@@ -353,8 +356,8 @@ function ManagementPage(props) {
 
     res.push(Setting.getItem(<Link style={{color: textColor}} to="/sessions">{i18next.t("general:Logging & Auditing")}</Link>, "/logs", <WalletTwoTone twoToneColor={twoToneColor} />, [
       Setting.getItem(<Link to="/sessions">{i18next.t("general:Sessions")}</Link>, "/sessions"),
-      Conf.CasvisorUrl ? Setting.getItem(<a target="_blank" rel="noreferrer" href={Conf.CasvisorUrl}>{i18next.t("general:Records")}</a>, "/records")
-        : Setting.getItem(<Link to="/records">{i18next.t("general:Records")}</Link>, "/records"),
+      Setting.getItem(<Link to="/records">{i18next.t("general:Records")}</Link>, "/records"),
+      Setting.getItem(<Link to="/keys">{i18next.t("general:Keys")}</Link>, "/keys"),
       Setting.getItem(<Link to="/tokens">{i18next.t("general:Tokens")}</Link>, "/tokens"),
       Setting.getItem(<Link to="/verifications">{i18next.t("general:Verifications")}</Link>, "/verifications"),
     ]));
@@ -485,6 +488,8 @@ function ManagementPage(props) {
         <Route exact path="/resources" render={(props) => renderLoginIfNotLoggedIn(<ResourceListPage account={account} {...props} />)} />
         <Route exact path="/certs" render={(props) => renderLoginIfNotLoggedIn(<CertListPage account={account} {...props} />)} />
         <Route exact path="/certs/:organizationName/:certName" render={(props) => renderLoginIfNotLoggedIn(<CertEditPage account={account} {...props} />)} />
+        <Route exact path="/servers" render={(props) => renderLoginIfNotLoggedIn(<ServerListPage account={account} {...props} />)} />
+        <Route exact path="/servers/:organizationName/:serverName" render={(props) => renderLoginIfNotLoggedIn(<ServerEditPage account={account} {...props} />)} />
         <Route exact path="/sites" render={(props) => renderLoginIfNotLoggedIn(<SiteListPage account={account} {...props} />)} />
         <Route exact path="/sites/:organizationName/:siteName" render={(props) => renderLoginIfNotLoggedIn(<SiteEditPage account={account} {...props} />)} />
         <Route exact path="/rules" render={(props) => renderLoginIfNotLoggedIn(<RuleListPage account={account} {...props} />)} />
@@ -501,6 +506,9 @@ function ManagementPage(props) {
         <Route exact path="/enforcers" render={(props) => renderLoginIfNotLoggedIn(<EnforcerListPage account={account} {...props} />)} />
         <Route exact path="/enforcers/:organizationName/:enforcerName" render={(props) => renderLoginIfNotLoggedIn(<EnforcerEditPage account={account} {...props} />)} />
         <Route exact path="/sessions" render={(props) => renderLoginIfNotLoggedIn(<SessionListPage account={account} {...props} />)} />
+        <Route exact path="/keys" render={(props) => renderLoginIfNotLoggedIn(<KeyListPage account={account} {...props} />)} />
+        <Route exact path="/keys/new" render={(props) => renderLoginIfNotLoggedIn(<KeyEditPage account={account} {...props} />)} />
+        <Route exact path="/keys/:keyName" render={(props) => renderLoginIfNotLoggedIn(<KeyEditPage account={account} {...props} />)} />
         <Route exact path="/tokens" render={(props) => renderLoginIfNotLoggedIn(<TokenListPage account={account} {...props} />)} />
         <Route exact path="/tokens/:tokenName" render={(props) => renderLoginIfNotLoggedIn(<TokenEditPage account={account} {...props} />)} />
         <Route exact path="/product-store" render={(props) => renderLoginIfNotLoggedIn(<ProductStorePage account={account} {...props} />)} />

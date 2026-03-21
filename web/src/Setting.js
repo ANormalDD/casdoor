@@ -32,7 +32,7 @@ const {Option} = Select;
 
 export const ServerUrl = "";
 
-export const StaticBaseUrl = "https://cdn.casbin.org";
+export const StaticBaseUrl = Conf.StaticBaseUrl;
 
 export const MAX_PAGE_SIZE = 25;
 export const SEARCH_DEBOUNCE_MS = 300;
@@ -462,7 +462,7 @@ export const UserFields = ["owner", "name", "password", "display_name", "id", "t
   "avatar_type", "permanent_avatar", "email_verified", "region", "location", "address",
   "affiliation", "title", "id_card_type", "id_card", "real_name", "is_verified", "bio", "tag", "language",
   "education", "score", "karma", "ranking", "balance", "balance_credit", "balance_currency", "currency", "is_default_avatar", "is_online",
-  "is_forbidden", "is_deleted", "signup_application", "register_type", "register_source", "hash", "pre_hash", "access_key", "access_secret", "access_token",
+  "is_forbidden", "is_deleted", "signup_application", "register_type", "register_source", "hash", "pre_hash", "access_token",
   "created_ip", "last_signin_time", "last_signin_ip", "github", "google", "qq", "wechat", "facebook", "dingtalk",
   "weibo", "gitee", "linkedin", "wecom", "lark", "gitlab", "adfs", "baidu", "alipay", "casdoor", "infoflow", "apple",
   "azuread", "azureadb2c", "slack", "steam", "bilibili", "okta", "douyin", "kwai", "line", "amazon", "auth0",
@@ -696,6 +696,10 @@ export function initServerUrl() {
 export function isLocalhost() {
   const hostname = window.location.hostname;
   return hostname === "localhost";
+}
+
+export function initWebConfig() {
+  Conf.initConfigFromCookie();
 }
 
 export function getFullServerUrl() {
@@ -2371,7 +2375,7 @@ export function filterTableColumns(columns, formItems, actionKey = "op") {
 }
 
 export function getApiPaths() {
-  const objects = ["organization", "group", "user", "application", "provider", "resource", "cert", "role", "permission", "model", "adapter", "enforcer", "session", "token", "product", "payment", "plan", "pricing", "subscription", "syncer", "webhook", "form", "invitation", "ldap", "order", "ticket", "transaction"];
+  const objects = ["organization", "group", "user", "application", "provider", "resource", "cert", "role", "permission", "model", "adapter", "enforcer", "session", "token", "key", "product", "payment", "plan", "pricing", "subscription", "syncer", "webhook", "form", "invitation", "ldap", "order", "ticket", "transaction"];
   const res = [];
 
   // Auth and user session APIs
@@ -2390,7 +2394,7 @@ export function getApiPaths() {
       res.push("place-order", "cancel-order", "pay-order");
     }
     if (obj === "user") {
-      res.push("add-user-keys", "remove-user-from-group", "upload-users");
+      res.push("remove-user-from-group", "upload-users");
       res.push("check-user-password", "set-password", "reset-email-or-phone");
       res.push("verify-identification");
     }
@@ -2423,6 +2427,9 @@ export function getApiPaths() {
     }
     if (obj === "session") {
       res.push("is-session-duplicated");
+    }
+    if (obj === "key") {
+      res.push("rotate-key");
     }
   });
 

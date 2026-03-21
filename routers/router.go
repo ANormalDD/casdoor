@@ -87,7 +87,6 @@ func InitAPI() {
 	web.Router("/api/get-user-count", &controllers.ApiController{}, "GET:GetUserCount")
 	web.Router("/api/get-user", &controllers.ApiController{}, "GET:GetUser")
 	web.Router("/api/update-user", &controllers.ApiController{}, "POST:UpdateUser")
-	web.Router("/api/add-user-keys", &controllers.ApiController{}, "POST:AddUserKeys")
 	web.Router("/api/add-user", &controllers.ApiController{}, "POST:AddUser")
 	web.Router("/api/delete-user", &controllers.ApiController{}, "POST:DeleteUser")
 	web.Router("/api/upload-users", &controllers.ApiController{}, "POST:UploadUsers")
@@ -133,6 +132,13 @@ func InitAPI() {
 	web.Router("/api/update-site", &controllers.ApiController{}, "POST:UpdateSite")
 	web.Router("/api/add-site", &controllers.ApiController{}, "POST:AddSite")
 	web.Router("/api/delete-site", &controllers.ApiController{}, "POST:DeleteSite")
+
+	web.Router("/api/get-servers", &controllers.ApiController{}, "GET:GetServers")
+	web.Router("/api/get-server", &controllers.ApiController{}, "GET:GetServer")
+	web.Router("/api/update-server", &controllers.ApiController{}, "POST:UpdateServer")
+	web.Router("/api/add-server", &controllers.ApiController{}, "POST:AddServer")
+	web.Router("/api/delete-server", &controllers.ApiController{}, "POST:DeleteServer")
+	web.Router("/api/server/:owner/:name", &controllers.ApiController{}, "GET,POST:ProxyServer")
 
 	web.Router("/api/get-rules", &controllers.ApiController{}, "GET:GetRules")
 	web.Router("/api/get-rule", &controllers.ApiController{}, "GET:GetRule")
@@ -309,6 +315,13 @@ func InitAPI() {
 	web.Router("/api/update-ldap", &controllers.ApiController{}, "POST:UpdateLdap")
 	web.Router("/api/delete-ldap", &controllers.ApiController{}, "POST:DeleteLdap")
 	web.Router("/api/sync-ldap-users", &controllers.ApiController{}, "POST:SyncLdapUsers")
+
+	web.Router("/api/get-keys", &controllers.ApiController{}, "GET:GetKeys")
+	web.Router("/api/get-key", &controllers.ApiController{}, "GET:GetKey")
+	web.Router("/api/add-key", &controllers.ApiController{}, "POST:AddKey")
+	web.Router("/api/update-key", &controllers.ApiController{}, "POST:UpdateKey")
+	web.Router("/api/delete-key", &controllers.ApiController{}, "POST:DeleteKey")
+	web.Router("/api/rotate-key", &controllers.ApiController{}, "POST:RotateKey")
 
 	web.Router("/api/login/oauth/access_token", &controllers.ApiController{}, "POST:GetOAuthToken")
 	web.Router("/api/login/oauth/refresh_token", &controllers.ApiController{}, "POST:RefreshToken")
